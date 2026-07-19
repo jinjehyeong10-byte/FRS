@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>FRS — 영수증 등록</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+<main class="container">
+  <div class="card">
+    <h2>🧾 영수증 등록하기</h2>
+    <div class="tab-nav">
+      <button class="active" data-tab="photo">📷 사진 업로드</button>
+      <button data-tab="text">📋 텍스트 붙여넣기</button>
+    </div>
+    <div id="tab-photo">
+      <div class="upload-zone" id="uploadZone">
+        <div style="font-size:36px;">📷</div>
+        <div class="label">여기를 눌러 영수증 사진을 올려주세요</div>
+        <div class="hint">JPG, PNG 업로드 가능 (OCR Mockup)</div>
+      </div>
+      <input type="file" accept="image/*" id="photoInput" class="hidden">
+      <div style="height:20px;"></div>
+      <button class="btn btn-a" id="btnPhotoGo" disabled onclick="handlePhotoRegister()">📸 사진에서 식품 인식하고 등록하기</button>
+    </div>
+    <div id="tab-text" class="hidden">
+      <textarea class="fld" id="receiptText" placeholder="영수증 내용을 여기에 붙여넣으세요.&#10;&#10;예시:&#10;서울우유 1L 2,980&#10;삼겹살 500g 12,000&#10;청송사과 3개 5,000&#10;두부 1모 1,500&#10;계란 10구 3,500&#10;시금치 1단 2,000&#10;냉동만두 1kg 8,000" style="min-height:200px;"></textarea>
+      <div style="height:20px;"></div>
+      <button class="btn btn-a" id="btnTextGo" onclick="handleTextRegister()">🔍 텍스트에서 식품 인식하고 등록하기</button>
+    </div>
+    <div class="loading" id="loadingBox"><div class="spin"></div><div style="font-weight:600;">AI가 영수증을 분석하고 있어요</div><div style="font-size:12px;color:var(--text3);">식품명 추출 + 소비기한 자동 계산 중...</div></div>
+    <div id="analysisResult" style="display:none;margin-top:14px;"></div>
+  </div>
+</main>
+
+<!-- +100 EP 팝업 -->
+<div class="point-popup" id="pointPopup">
+  <div class="pop-icon">🌱</div>
+  <div class="pop-val">+100 EP</div>
+  <div class="pop-lbl">Earth Point 적립!</div>
+</div>
+
+<div class="toast" id="toast">✅ <span></span></div>
+
+<script src="app.js"></script>
+<script>
+window._currentPage='scan';
+renderNavbar('scan');
+
+// 탭
+$('.tab-nav').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;$$('.tab-nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#tab-photo').classList.toggle('hidden',b.dataset.tab!=='photo');$('#tab-text').classList.toggle('hidden',b.dataset.tab!=='text');});
+
+// 사진 업로드
+const uz=$('#uploadZone');uz.addEventListener('dragover',e=>{e.preventDefault();uz.style.borderColor='var(--accent)';});uz.addEventListener('dragleave',()=>uz.style.borderColor='');uz.addEventListener('drop',e=>{e.preventDefault();uz.style.borderColor='';const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))handlePhoto(f);});uz.addEventListener('click',()=>$('#photoInput').click());$('#photoInput').addEventListener('change',e=>{const f=e.target.files[0];if(f)handlePhoto(f);});
+function handlePhoto(file){const r=new FileReader();r.onload=e=>{let img=uz.querySelector('img.preview');if(!img){img=document.createElement('img');img.className='preview';uz.appendChild(img);}img.src=e.target.result;$('#btnPhotoGo').disabled=false;$('#receiptText').value=getFakeReceipt();showToast('사진이 등록되었습니다. 텍스트 탭에서 확인하세요.');};r.readAsDataURL(file);}
+function handlePhotoRegister(){$$('.tab-nav button')[1].click();setTimeout(()=>handleTextRegister(),300);}
+
+// 텍스트 등록
+async function handleTextRegister(){
+  const txt=$('#receiptText').value.trim();
+  if(!txt)return showToast('영수증 내용을 입력해 주세요.');
+  $('#loadingBox').classList.add('on');$('#analysisResult').style.display='none';
+  let items;try{items=analyzeReceiptMock(txt);}catch(e){$('#loadingBox').classList.remove('on');return showToast('분석에 실패했어요.');}
+  $('#loadingBox').classList.remove('on');
+  if(items.length===0){showToast('식료품이 감지되지 않았습니다. 식료품 영수증인 경우에만 포인트가 적립돼요.');return;}
+  showAnalysis(items);
+}
+
+function showAnalysis(items){
+  const today=new Date();today.setHours(0,0,0,0);
+  items.sort((a,b)=>(Math.ceil((new Date(a.expiryDate)-today)/86400000))-(Math.ceil((new Date(b.expiryDate)-today)/86400000)));
+  let h=`<div style="font-weight:600;margin-bottom:10px;">✅ AI가 분석한 식품 목록입니다.</div><ul class="result-list">`;
+  items.forEach(item=>{const diff=Math.ceil((new Date(item.expiryDate)-today)/86400000);const cls=diff<0?'gray':diff<=3?'red':diff<=7?'yellow':'green';h+=`<li class="result-row"><span class="icon">${item.icon}</span><div class="info"><div class="name">${esc(item.name)}</div><div class="meta">${esc(item.category)} · ${esc(item.purchaseDate)}</div></div><div style="text-align:center;"><span class="dday ${cls}">${diff<0?'만료':'D-'+diff}</span><div style="font-size:10px;color:var(--text3);">~${esc(item.expiryDate)}</div></div></li>`;});
+  h+=`</ul><button class="btn btn-a mt-3" onclick="addAll()">📦 모두 보관함에 추가 (+100 EP)</button><button class="btn btn-b mt-2" onclick="clearAnalysis()">취소</button>`;
+  const el=$('#analysisResult');el.innerHTML=h;el._tmp=items;el.style.display='block';
+}
+function addAll(){const items=$('#analysisResult')._tmp;if(!items||!items.length)return;addFoodItems(items);addPoints(100);showPointPopup();clearAnalysis();showToast(`${items.length}개 식품이 보관함에 추가되었습니다! (+100 EP)`);}
+function clearAnalysis(){$('#analysisResult').style.display='none';$('#analysisResult').innerHTML='';}
+function showPointPopup(){const p=$('#pointPopup');p.classList.add('show');setTimeout(()=>p.classList.remove('show'),1800);}
+
+// 페널티 체크
+applyExpiryPenalties();
+</script>
+</body></html>

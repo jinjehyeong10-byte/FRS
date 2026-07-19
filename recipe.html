@@ -1,0 +1,56 @@
+<!DOCTYPE html><html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>FRS — AI 레시피</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+<main class="container">
+  <a href="fridge.html" class="btn btn-b btn-sm" style="width:auto;display:inline-flex;margin-bottom:16px;">← 보관함으로 돌아가기</a>
+  <div id="recipeContent">
+    <div class="empty"><i>📭</i><div>선택된 재료가 없어요.<br><a href="fridge.html">보관함에서 재료를 선택해 주세요.</a></div></div>
+  </div>
+</main>
+<div class="toast" id="toast">✅ <span></span></div>
+<script src="app.js"></script>
+<script>
+window._currentPage='recipe';
+renderNavbar('recipe');
+
+const ids=getSelectedIngredients();
+if(ids.length>0){
+  const items=getFoodItems().filter(f=>ids.includes(f.id));
+  if(items.length>0)renderRecipes(items.map(f=>f.name));
+}
+
+function renderRecipes(ingredients){
+  const groups=generateRecipeGroups(ingredients);
+  let html=`<h2 style="text-align:center;color:var(--accent);margin-bottom:20px;">🍳 AI 맞춤 레시피</h2>
+  <p style="text-align:center;color:var(--text3);font-size:14px;margin-bottom:20px;">${groups.length>1?`선택한 ${ingredients.length}개 재료로 <b>${groups.length}가지 메뉴</b>를 제안해요.`:`선택한 ${ingredients.length}개 재료로 만드는 최적의 레시피입니다.`}</p>`;
+
+  groups.forEach((r,i)=>{
+    html+=`<div class="recipe-card">
+      ${groups.length>1?`<span style="display:inline-block;background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-bottom:8px;">추천 메뉴 ${i+1}</span>`:''}
+      <h3>${r.title}</h3>
+      <div class="rmeta">⏱ ${r.time} · 👥 ${r.servings} · 난이도 ${r.difficulty}</div>
+      <h5>🧺 사용 재료 (${r.ingredientDetails.length}종)</h5>
+      <ul>${r.ingredientDetails.map(d=>`<li><b>${d.name}</b> — ${d.usage}</li>`).join('')}</ul>
+      <h5>📋 조리 순서</h5>
+      <ol>${r.steps.split('\n').map(s=>`<li>${s.replace(/^\d+\.\s*/,'')}</li>`).join('')}</ol>
+      <h5>📊 영양정보 (1인분 기준)</h5>
+      <div class="nutri-grid">
+        <div class="nutri-cell"><div class="nv" style="color:#d44;">${r.nutrition.kcal}</div><div class="nl">칼로리</div></div>
+        <div class="nutri-cell"><div class="nv" style="color:#3a3;">${r.nutrition.protein}</div><div class="nl">단백질</div></div>
+        <div class="nutri-cell"><div class="nv" style="color:#d80;">${r.nutrition.carbs}</div><div class="nl">탄수화물</div></div>
+        <div class="nutri-cell"><div class="nv" style="color:#38d;">${r.nutrition.fat}</div><div class="nl">지방</div></div>
+      </div>
+      ${r.nutrition.note?`<div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px;">${r.nutrition.note}</div>`:''}
+      <div class="tip-box"><b>👨‍🍳 셰프의 팁</b> ${r.chefTip}</div>
+      ${i===0?buildProfileAlert():''}
+    </div>`;
+  });
+  $('#recipeContent').innerHTML=html;
+}
+</script>
+</body></html>
